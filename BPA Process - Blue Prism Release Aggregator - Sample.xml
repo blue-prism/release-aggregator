@@ -1,0 +1,93 @@
+﻿<process name="Blue Prism Release Aggregator - Sample" version="1.0" bpversion="6.6.0.15260" narrative="This is a sample process for executing the Generate Release File action of the Blue Prism Release Aggregator VBO." byrefcollection="true" preferredid="f0e3e509-ee80-4326-8482-2be178149f44">
+  <view>
+    <camerax>0</camerax>
+    <cameray>29</cameray>
+    <zoom version="2">1.25</zoom>
+  </view>
+  <preconditions />
+  <endpoint narrative="" />
+  <stage stageid="d43f4daf-ef17-478c-b1ba-6e05cee6608e" name="Start" type="Start">
+    <display x="15" y="-135" />
+    <onsuccess>c6cd9bcd-7a2b-40c1-afce-4e63985ff45c</onsuccess>
+  </stage>
+  <stage stageid="0ea370a8-8400-4cde-8395-232fddf7a920" name="End" type="End">
+    <display x="15" y="90" />
+  </stage>
+  <stage stageid="c91f1491-6003-45f2-a4e6-2d9c6c0e847a" name="Stage1" type="ProcessInfo">
+    <display x="-195" y="-105" w="150" h="90" />
+  </stage>
+  <stage stageid="31683e84-d25f-4d32-9f27-31e5de3dc5f0" name="Source Folder" type="Data">
+    <display x="-195" y="-15" w="150" h="30" />
+    <datatype>text</datatype>
+    <initialvalue xml:space="preserve">C:\temp\Release Files</initialvalue>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="39a8165c-87ae-450b-8450-86ec0b3480ca" name="Output Folder" type="Data">
+    <display x="-195" y="15" w="150" h="30" />
+    <datatype>text</datatype>
+    <initialvalue xml:space="preserve">C:\temp\Release Files\Output</initialvalue>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="0afaa07a-c0d0-4f11-90fe-500d635818b7" name="Input Data Items" type="Block">
+    <display x="-270" y="-45" w="150" h="150" />
+    <font family="Segoe UI" size="10" style="Regular" color="FFCC00" />
+  </stage>
+  <stage stageid="32a7c533-a7f8-42bd-87dd-45fb4a45bbb1" name="Local Data Items" type="Block">
+    <display x="-270" y="120" w="150" h="120" />
+    <font family="Segoe UI" size="10" style="Regular" color="339966" />
+  </stage>
+  <stage stageid="714fa446-406e-4069-a381-f77b83cdeb9d" name="Release Notes" type="Data">
+    <display x="-195" y="75" w="150" h="30" />
+    <datatype>text</datatype>
+    <initialvalue xml:space="preserve">Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Vulputate eu scelerisque felis imperdiet proin fermentum leo vel. Arcu non odio euismod lacinia.</initialvalue>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="52e370c5-379e-49c4-bd5e-ef076caa8a3e" name="Release Name" type="Data">
+    <display x="-195" y="45" w="150" h="30" />
+    <datatype>text</datatype>
+    <initialvalue xml:space="preserve">Merged Release</initialvalue>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="c6cd9bcd-7a2b-40c1-afce-4e63985ff45c" name="Blue Prism Release Aggregator::Generate Release File" type="Action">
+    <loginhibit onsuccess="true" />
+    <display x="15" y="-45" w="120" h="60" />
+    <inputs>
+      <input type="text" name="Source Folder" friendlyname="Source Folder" narrative="Folder location of the .xml and/or .bprelease files to be consolidated." expr="[Source Folder]" />
+      <input type="text" name="Output Folder" friendlyname="Output Folder" narrative="Folder location where the consolidated .bprelease file will be saved." expr="[Output Folder]" />
+      <input type="text" name="Release Name" friendlyname="Release Name" narrative="Name for the consolidated .bprelease file." expr="[Release Name]" />
+      <input type="text" name="Release Notes" friendlyname="Release Notes" narrative="Release notes to be included in the consolidated .bprelease file." expr="[Release Notes]" />
+    </inputs>
+    <outputs>
+      <output type="flag" name="Success" friendlyname="Success" narrative="Flag indicating success or failure of the action." stage="Success" />
+      <output type="text" name="Message" friendlyname="Message" narrative="Text indicating the result of the action. Will be blank if the action was successful." stage="Message" />
+      <output type="text" name="Output File Name" friendlyname="Output File Name" narrative="The full file name, including path, of the .bprelease file generated." stage="Output File Name" />
+    </outputs>
+    <onsuccess>0ea370a8-8400-4cde-8395-232fddf7a920</onsuccess>
+    <resource object="Blue Prism Release Aggregator" action="Generate Release File" />
+  </stage>
+  <stage stageid="7c340c89-4c7d-4943-aab9-da305bd23cd6" name="Success" type="Data">
+    <display x="-195" y="180" w="150" h="30" />
+    <datatype>flag</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="e7834525-e1fa-4089-9b9e-7c49cac8e118" name="Message" type="Data">
+    <display x="-195" y="210" w="150" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="f6bdb054-7638-4710-8589-f35347cf126e" name="Output File Name" type="Data">
+    <display x="-195" y="150" w="150" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+</process>

@@ -1,0 +1,429 @@
+﻿<process name="Blue Prism Release Aggregator" version="1.0" bpversion="6.6.0.15260" narrative="This purpose of this VBO is to provide a mechanism for consolidating one or more .xml and/or .bprelease files into one single .bprelease file, primarily for streamlining the import of multiple files." byrefcollection="true" type="object" runmode="Background" preferredid="df9b51df-9290-4f31-acd2-4c5935349d9d">
+  <appdef>
+    <element name="Application Root">
+      <id>4edf8596-fdcc-4b46-badc-4e23adb00e29</id>
+      <type>Application</type>
+      <basetype>Application</basetype>
+      <datatype>unknown</datatype>
+      <diagnose>False</diagnose>
+    </element>
+  </appdef>
+  <view>
+    <camerax>0</camerax>
+    <cameray>0</cameray>
+    <zoom version="2">1.25</zoom>
+  </view>
+  <preconditions />
+  <endpoint narrative="" />
+  <subsheet subsheetid="68643287-4291-4a5e-a93f-8bc8f5709426" type="CleanUp" published="True">
+    <name>Clean Up</name>
+    <view>
+      <camerax>0</camerax>
+      <cameray>0</cameray>
+      <zoom version="2">1.25</zoom>
+    </view>
+  </subsheet>
+  <subsheet subsheetid="80227d18-70bc-4732-baff-fb805c859aab" type="Normal" published="True">
+    <name>Generate Release File</name>
+    <view>
+      <camerax>0</camerax>
+      <cameray>-42</cameray>
+      <zoom version="2">1.25</zoom>
+    </view>
+  </subsheet>
+  <stage stageid="6f069277-1c76-40fa-a597-6226595a4055" name="Start" type="Start">
+    <loginhibit />
+    <display x="15" y="-105" />
+    <onsuccess>91bacfd6-c419-44fa-ad13-8aca0f3dc645</onsuccess>
+  </stage>
+  <stage stageid="91bacfd6-c419-44fa-ad13-8aca0f3dc645" name="End" type="End">
+    <loginhibit />
+    <display x="15" y="90" />
+  </stage>
+  <stage stageid="7bd55fcb-5b8f-43d9-a4f7-df7ccfaf670c" name="Stage1" type="ProcessInfo">
+    <display x="-195" y="-105" w="150" h="90" />
+    <references>
+      <reference>System.dll</reference>
+      <reference>System.Data.dll</reference>
+      <reference>System.Xml.dll</reference>
+      <reference>System.Drawing.dll</reference>
+      <reference>System.Xml.Linq.dll</reference>
+      <reference>System.Core.dll</reference>
+      <reference>System.Data.DataSetExtensions.dll</reference>
+    </references>
+    <imports>
+      <import>System</import>
+      <import>System.Drawing</import>
+      <import>System.Data</import>
+      <import>System.IO</import>
+      <import>System.Linq</import>
+      <import>System.Collections.Generic</import>
+      <import>System.Xml</import>
+    </imports>
+    <language>csharp</language>
+    <globalcode><![CDATA[]]></globalcode>
+    <code><![CDATA[public string GenerateReleaseFile(List<string> files, string releaseName, string releaseNotes, string targetDirectory)
+{
+	List<Tuple<int, string, string>> namespaceLookup = new List<Tuple<int, string, string>>
+	{
+		Tuple.Create(1, "process", "http://www.blueprism.co.uk/product/process"),
+		Tuple.Create(2, "object", "http://www.blueprism.co.uk/product/process"),
+		Tuple.Create(3, "work-queue", "http://www.blueprism.co.uk/product/process"),
+		Tuple.Create(4, "credential", "http://www.blueprism.co.uk/product/process"),
+		Tuple.Create(5, "calendar", "http://www.blueprism.co.uk/product/process"),
+		Tuple.Create(6, "schedule", "http://www.blueprism.co.uk/product/process"),
+		Tuple.Create(7, "webapiservice", "http://www.blueprism.co.uk/product/process"),
+		Tuple.Create(8, "environment-variable", "http://www.blueprism.co.uk/product/process"),
+		Tuple.Create(9, "tile", "http://www.blueprism.co.uk/product/process"),
+		Tuple.Create(10, "dashboard", "http://www.blueprism.co.uk/product/process"),
+		Tuple.Create(11, "process-group", "http://www.blueprism.co.uk/product/process"),
+		Tuple.Create(12, "object-group", "http://www.blueprism.co.uk/product/process")
+	};
+	List<Tuple<XmlNode, int>> children = new List<Tuple<XmlNode, int>>();
+	List<Tuple<XmlNode, int>> filteredChildren = new List<Tuple<XmlNode, int>>();
+
+	// cleanse the releaseName and targetDirectory values...need to make sure the name doesn't include the 
+	// file extension and the directory doesn't end with a "\"
+	releaseName = releaseName.Replace(".bprelease", string.Empty);
+	if (targetDirectory.EndsWith(@"\"))
+		targetDirectory = targetDirectory.Substring(0, targetDirectory.Length - 1);
+
+	string outputFilePath = string.Format(@"{0}\{1}-{2}.bprelease", targetDirectory, releaseName, DateTime.UtcNow.ToString("yyyyMMdd"));
+
+	string prefix = "bpr";
+	string ns = "http://www.blueprism.co.uk/product/release";
+	XmlDocument doc = new XmlDocument();
+	XmlNamespaceManager nsManager = new XmlNamespaceManager(doc.NameTable);
+	nsManager.AddNamespace(prefix, ns);
+
+	// init release file
+	InitializeReleaseFile(doc, prefix, ns, releaseName, releaseNotes);
+
+	// build list of potential content nodes
+	ProcessContentItems(children, files, nsManager, namespaceLookup);
+
+	// filter any duplicates from list of potential content nodes
+	filteredChildren = children
+		.GroupBy(n => new { id = n.Item1.Attributes.GetNamedItem("id").Value, name = n.Item1.Attributes.GetNamedItem("name").Value })
+		.Select(n => n.FirstOrDefault()).ToList();
+
+	// import each content node and append to the parent content node, making sure to sort properly when importing
+	XmlNode contents = doc.SelectSingleNode("bpr:release/bpr:contents", nsManager);
+	filteredChildren.OrderBy(i => i.Item2).ToList().ForEach(
+		c =>
+		{
+			contents.AppendChild(doc.ImportNode(c.Item1, true));
+		});
+
+	// update the contents count
+	contents.Attributes.GetNamedItem("count").Value = filteredChildren.Count.ToString();
+
+	// save the final release file to disk
+	doc.Save(outputFilePath);
+	
+	// return the outputFilePath
+	return outputFilePath;
+}
+
+private void InitializeReleaseFile(XmlDocument doc, string prefix, string ns, string releaseName, string releaseNotes)
+{
+	// create root node and add to doc
+	XmlNode rootNode = doc.CreateElement(prefix, "release", ns);
+	doc.AppendChild(rootNode);
+
+	XmlNode node;
+
+	node = doc.CreateElement(prefix, "name", ns);
+	node.InnerText = releaseName;
+	rootNode.AppendChild(node);
+
+	node = doc.CreateElement(prefix, "release-notes", ns);
+	node.InnerText = releaseNotes;
+	rootNode.AppendChild(node);
+
+	node = doc.CreateElement(prefix, "created", ns);
+	node.InnerText = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ssZ");
+	rootNode.AppendChild(node);
+
+	node = doc.CreateElement(prefix, "package-id", ns);
+	node.InnerText = "1";
+	rootNode.AppendChild(node);
+
+	node = doc.CreateElement(prefix, "package-name", ns);
+	node.InnerText = releaseName;
+	rootNode.AppendChild(node);
+
+	node = doc.CreateElement(prefix, "user-created-by", ns);
+	node.InnerText = Environment.UserName;
+	rootNode.AppendChild(node);
+
+	// add Contents element
+	XmlNode contentsNode = doc.CreateElement(prefix, "contents", ns);
+	XmlAttribute attribute = doc.CreateAttribute("count");
+	// seed the count with "1", it will be updated later to reflect true number of files included in release file
+	attribute.Value = "1";
+	contentsNode.Attributes.Append(attribute);
+	rootNode.AppendChild(contentsNode);
+}
+
+private void ProcessContentItems(IList<Tuple<XmlNode, int>> children, IList<string> files, XmlNamespaceManager nsManager, IList<Tuple<int, string, string>> namespaceLookup)
+{
+	files.ToList().ForEach(
+		f =>
+		{
+			// get xml from the file
+			XmlDocument xml = new XmlDocument();
+			xml.Load(f);
+
+			// validate if .xml or .bprelease file...set node variable accordingly
+			FileInfo fi = new FileInfo(f);
+			if (fi.Extension == ".bprelease")
+			{
+				XmlNode node;
+				node = xml.SelectSingleNode("bpr:release/bpr:contents", nsManager);
+				foreach (XmlNode child in node.ChildNodes)
+				{
+					var info = namespaceLookup.Where(n => n.Item2 == child.Name).FirstOrDefault();
+					children.Add(Tuple.Create(child, info.Item1));
+				}
+			}
+			else
+			{
+				// get id and name attributes from incoming xml
+				string id = xml.FirstChild.Attributes.GetNamedItem("preferredid").Value;
+				string name = xml.FirstChild.Attributes.GetNamedItem("name").Value;
+
+				// determine process OR object and use for creating wrapper node
+				string itemType = xml.FirstChild.Attributes.GetNamedItem("type") == null ? "process" : xml.FirstChild.Attributes.GetNamedItem("type").Value;
+
+				// get sort and namespace info from lookup
+				var info = namespaceLookup.Where(n => n.Item2 == itemType).FirstOrDefault();
+
+				// create wrapper node and add required attributes
+				XmlNode wrapperNode = xml.CreateElement(itemType, info.Item3);
+				XmlAttribute idAttribute = xml.CreateAttribute("id");
+				idAttribute.Value = id;
+				wrapperNode.Attributes.Append(idAttribute);
+				XmlAttribute nameAttribute = xml.CreateAttribute("name");
+				nameAttribute.Value = name;
+				wrapperNode.Attributes.Append(nameAttribute);
+
+				// remove attributes from incoming xml that are no longer needed
+				xml.FirstChild.Attributes.RemoveNamedItem("preferredid");
+
+
+				// create new xml doc from wrapper node and append incoming xml as the child
+				XmlDocument tempXml = new XmlDocument();
+				tempXml.LoadXml(wrapperNode.OuterXml);
+				XmlNode stagingNode = tempXml.ImportNode(xml.FirstChild, true);
+				tempXml.DocumentElement.AppendChild(stagingNode);
+
+				// add newly generated xml to the childNodes list
+				children.Add(Tuple.Create((XmlNode)tempXml.DocumentElement, info.Item1));
+			}
+		});
+}
+]]></code>
+  </stage>
+  <stage stageid="64dd9a72-a8a6-4747-9fbc-91b15f8019ec" name="Clean Up" type="SubSheetInfo">
+    <subsheetid>68643287-4291-4a5e-a93f-8bc8f5709426</subsheetid>
+    <display x="-195" y="-105" w="150" h="90" />
+  </stage>
+  <stage stageid="ca21e4af-f0a4-4c6c-a463-ec209fd0c23e" name="Start" type="Start">
+    <subsheetid>68643287-4291-4a5e-a93f-8bc8f5709426</subsheetid>
+    <loginhibit />
+    <display x="15" y="-105" />
+    <onsuccess>ce46dff3-11e2-459a-bded-6666144332c0</onsuccess>
+  </stage>
+  <stage stageid="ce46dff3-11e2-459a-bded-6666144332c0" name="End" type="End">
+    <subsheetid>68643287-4291-4a5e-a93f-8bc8f5709426</subsheetid>
+    <loginhibit />
+    <display x="15" y="90" />
+  </stage>
+  <stage stageid="cfd4607e-d6c4-47a7-9c79-ac2137efa22d" name="Generate Release File" type="SubSheetInfo">
+    <subsheetid>80227d18-70bc-4732-baff-fb805c859aab</subsheetid>
+    <narrative>Consolidate all .xml and/or .bprelease files in the given folder into one single .bprelease file.</narrative>
+    <display x="-195" y="-165" w="180" h="90" />
+  </stage>
+  <stage stageid="839ef795-6776-4b0b-a006-eacbd8310628" name="Start" type="Start">
+    <subsheetid>80227d18-70bc-4732-baff-fb805c859aab</subsheetid>
+    <loginhibit />
+    <display x="15" y="-195" />
+    <inputs>
+      <input type="text" name="Source Folder" narrative="Folder location of the .xml and/or .bprelease files to be consolidated." stage="Source Folder" />
+      <input type="text" name="Output Folder" narrative="Folder location where the consolidated .bprelease file will be saved." stage="Output Folder" />
+      <input type="text" name="Release Name" narrative="Name for the consolidated .bprelease file." stage="Release Name" />
+      <input type="text" name="Release Notes" narrative="Release notes to be included in the consolidated .bprelease file." stage="Release Notes" />
+    </inputs>
+    <onsuccess>d460ff5e-6646-4e0f-8205-03e6ee40a362</onsuccess>
+  </stage>
+  <stage stageid="5dc2130e-2f40-45b6-b9ce-171a4cc6018e" name="End" type="End">
+    <subsheetid>80227d18-70bc-4732-baff-fb805c859aab</subsheetid>
+    <loginhibit />
+    <display x="15" y="30" />
+    <outputs>
+      <output type="flag" name="Success" narrative="Flag indicating success/failure of delete files operation" stage="Success" />
+      <output type="text" name="Message" narrative="Output result message; should be blank if 'Success' = True" stage="Message" />
+      <output type="text" name="Output File Name" narrative="The full file name, including path, of the .bprelease file generated." stage="Output File Name" />
+    </outputs>
+  </stage>
+  <stage stageid="3236dd2a-db42-44a4-a995-00a901b41099" name="Note1" type="Note">
+    <subsheetid>68643287-4291-4a5e-a93f-8bc8f5709426</subsheetid>
+    <narrative>Clean Up Page
+
+This is an optional page where you might choose to perform some finalisation (or "cleanup") tasks as your business object is closed down.
+
+The cleanup action will be called automatically immediately after closing your business object at the end of a business process.
+
+You will not be able to call this action from a business process, nor will it be called at any other time than before the disposal of the business object.</narrative>
+    <display x="-180" y="60" w="180" h="230" />
+  </stage>
+  <stage stageid="dfbd7f50-0dfa-4f2b-91f9-bf1032c8661b" name="Note2" type="Note">
+    <narrative>Initialise Page
+
+This is an optional page where you might choose to perform some initialisation tasks after your business object is loaded.
+
+The initialise action will be called automatically immediately after loading your business object.
+
+You will not be able to call this action from a business process, nor will it be called at any other time than after the creation of the object.</narrative>
+    <display x="-180" y="60" w="180" h="230" />
+  </stage>
+  <stage stageid="d460ff5e-6646-4e0f-8205-03e6ee40a362" name="Utility - File Management::Get Files" type="Action">
+    <subsheetid>80227d18-70bc-4732-baff-fb805c859aab</subsheetid>
+    <loginhibit onsuccess="true" />
+    <display x="15" y="-135" w="120" h="30" />
+    <inputs>
+      <input type="text" name="Folder" friendlyname="Folder" narrative="The folder in which to look for files" expr="[Source Folder]" />
+      <input type="text" name="Patterns CSV" friendlyname="Patterns CSV" narrative="The comma seperated list of wildcard patterns" expr="[File Patterns]" />
+    </inputs>
+    <outputs>
+      <output type="flag" name="Success" friendlyname="Success" narrative="True if successful" stage="Success" />
+      <output type="text" name="Message" friendlyname="Message" narrative="A message if unsuccessful" stage="Message" />
+      <output type="collection" name="Files" friendlyname="Files" narrative="The collection of files found" stage="Files" />
+    </outputs>
+    <onsuccess>d107a0d6-e4ac-43cb-af28-9ed88c65978c</onsuccess>
+    <resource object="Utility - File Management" action="Get Files" />
+  </stage>
+  <stage stageid="c7949f8c-8083-4769-a662-b701033c20fc" name="File Patterns" type="Data">
+    <subsheetid>80227d18-70bc-4732-baff-fb805c859aab</subsheetid>
+    <loginhibit />
+    <display x="-195" y="90" w="150" h="30" />
+    <datatype>text</datatype>
+    <initialvalue xml:space="preserve">*.xml, *.bprelease</initialvalue>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="24965ff3-67f6-4e7c-ae3c-4af0325786af" name="Source Folder" type="Data">
+    <subsheetid>80227d18-70bc-4732-baff-fb805c859aab</subsheetid>
+    <loginhibit />
+    <display x="-195" y="-75" w="150" h="30" />
+    <datatype>text</datatype>
+    <initialvalue xml:space="preserve">c:\temp</initialvalue>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="694aeeaf-17fb-4132-9b7d-30d77c923c3a" name="Success" type="Data">
+    <subsheetid>80227d18-70bc-4732-baff-fb805c859aab</subsheetid>
+    <display x="-195" y="195" w="150" h="30" />
+    <datatype>flag</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="32568be6-a746-48b8-8b03-b4428eaadf74" name="Message" type="Data">
+    <subsheetid>80227d18-70bc-4732-baff-fb805c859aab</subsheetid>
+    <display x="-195" y="225" w="150" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="7d012f32-e044-4e2c-81bc-f1043fc9e24e" name="Files" type="Collection">
+    <subsheetid>80227d18-70bc-4732-baff-fb805c859aab</subsheetid>
+    <display x="-195" y="120" w="150" h="30" />
+    <datatype>collection</datatype>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="d107a0d6-e4ac-43cb-af28-9ed88c65978c" name="Generate Release File" type="Code">
+    <subsheetid>80227d18-70bc-4732-baff-fb805c859aab</subsheetid>
+    <loginhibit />
+    <display x="15" y="-60" w="120" h="60" />
+    <inputs>
+      <input type="collection" name="files" expr="[Files]" />
+      <input type="text" name="releaseName" expr="[Release Name]" />
+      <input type="text" name="releaseNotes" expr="[Release Notes]" />
+      <input type="text" name="targetDirectory" expr="[Output Folder]" />
+    </inputs>
+    <outputs>
+      <output type="flag" name="success" stage="Success" />
+      <output type="text" name="message" stage="Message" />
+      <output type="text" name="outputFileName" stage="Output File Name" />
+    </outputs>
+    <onsuccess>5dc2130e-2f40-45b6-b9ce-171a4cc6018e</onsuccess>
+    <code><![CDATA[success = true;
+message = "";
+outputFileName = "";
+
+try
+{
+	outputFileName = GenerateReleaseFile(files.AsEnumerable().Select(d => d.Field<string>("Path")).ToList(), releaseName, releaseNotes, targetDirectory);
+}
+catch (Exception ex)
+{
+	success = false;
+	message = ex.Message;
+}
+]]></code>
+  </stage>
+  <stage stageid="5afb9bd3-acb7-4479-86f1-4c03435bad3d" name="Output File Name" type="Data">
+    <subsheetid>80227d18-70bc-4732-baff-fb805c859aab</subsheetid>
+    <display x="-195" y="255" w="150" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="4f98da9d-d711-4ac2-aa21-dcd1cccf8dc5" name="Output Folder" type="Data">
+    <subsheetid>80227d18-70bc-4732-baff-fb805c859aab</subsheetid>
+    <display x="-195" y="-45" w="150" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="42de1c2c-a11a-4128-87de-27575abcc771" name="Release Name" type="Data">
+    <subsheetid>80227d18-70bc-4732-baff-fb805c859aab</subsheetid>
+    <display x="-195" y="-15" w="150" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="7672e82f-ed68-4b8c-b3d6-11dbd338f556" name="Release Notes" type="Data">
+    <subsheetid>80227d18-70bc-4732-baff-fb805c859aab</subsheetid>
+    <display x="-195" y="15" w="150" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="2f9fc494-42ca-4060-8ea9-0e392de695b0" name="Input Data Items" type="Block">
+    <subsheetid>80227d18-70bc-4732-baff-fb805c859aab</subsheetid>
+    <loginhibit />
+    <display x="-285" y="-105" w="180" h="150" />
+    <font family="Segoe UI" size="10" style="Regular" color="FFCC00" />
+  </stage>
+  <stage stageid="1c6b1831-1aed-4fcd-9b46-e6dc8e6c1879" name="Local Data Items" type="Block">
+    <subsheetid>80227d18-70bc-4732-baff-fb805c859aab</subsheetid>
+    <loginhibit />
+    <display x="-285" y="60" w="180" h="90" />
+    <font family="Segoe UI" size="10" style="Regular" color="339966" />
+  </stage>
+  <stage stageid="400f7c81-43f4-4250-9857-fdc2d81a7cd9" name="Output Data Items" type="Block">
+    <subsheetid>80227d18-70bc-4732-baff-fb805c859aab</subsheetid>
+    <loginhibit />
+    <display x="-285" y="165" w="180" h="120" />
+    <font family="Segoe UI" size="10" style="Regular" color="800000" />
+  </stage>
+</process>
