@@ -1,5 +1,5 @@
 # Blue Prism - Release Aggregator VBO
-This purpose of this VBO is to provide a mechanism for consolidating one or more .xml and/or .bprelease files into one single .bprelease file, primarily for streamlining the import of multiple files.
+The purpose of this VBO is to provide a mechanism for consolidating one or more .xml and/or .bprelease files into one single .bprelease file, primarily for streamlining the import of multiple files.
 
 ## Usage
 The VBO provides the following actions:
